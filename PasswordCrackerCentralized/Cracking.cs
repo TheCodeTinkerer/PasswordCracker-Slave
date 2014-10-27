@@ -26,7 +26,7 @@ namespace PasswordCrackerCentralized
         /// <summary>
         /// Runs the password cracking algorithm
         /// </summary>
-        public void RunCracking()
+        public List<UserInfoClearText> RunCracking()
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
 

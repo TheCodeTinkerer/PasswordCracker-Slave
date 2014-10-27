@@ -2,7 +2,7 @@
 {
     class Program
     {
-        static void Main()
+        static void Main1()
         {
             Cracking cracker = new Cracking();
             cracker.RunCracking();
