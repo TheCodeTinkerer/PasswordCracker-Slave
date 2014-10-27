@@ -50,7 +50,7 @@ namespace PasswordCrackerCentralized
                 {
                     try
                     {
-                        IPAddress ip = IPAddress.Parse("locelhost");
+                        IPAddress ip = IPAddress.Parse("10.154.2.36");
                         IPEndPoint remoteEP = new IPEndPoint(ip, Port);
 
                         client.BeginConnect(remoteEP, new AsyncCallback(ConnectCallback), client);
@@ -93,21 +93,90 @@ namespace PasswordCrackerCentralized
                     bWrite.Write(words);
                     Console.WriteLine("File: {0} received & saved at path: {1}", fileName, receivedPart);
 
+                    bWrite.Close();
+                    client.Close();
+                    Console.ReadLine();
                 }
 
                 private static void Receive(Socket client)
                 {
-                    throw new NotImplementedException();
+                    try
+                    {
+                        StateObject state = new StateObject();
+                        state.workSocket = client;
+
+                        client.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e.ToString());
+                    }
+                }
+
+                private static void ReceiveCallback(IAsyncResult ar)
+                {
+                    try
+                    {
+                        StateObject state = (StateObject)ar.AsyncState;
+                        Socket client = state.workSocket;
+
+                        int bytesRead = client.EndReceive(ar);
+
+                        if (bytesRead > 0)
+                        {
+                            state.sb.Append(Encoding.ASCII.GetString(state.buffer, 0, bytesRead));
+
+                            client.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
+                        }
+                        else
+                        {
+                            if (state.sb.Length > 1)
+                            {
+                                response = state.sb.ToString();
+                            }
+                            ReceiveDone.Set();
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e.ToString());
+                    }
                 }
 
                 private static void Send(Socket client, string answer)
                 {
-                    throw new NotImplementedException();
+                    byte[] byteData = Encoding.ASCII.GetBytes(answer);
+                    client.BeginSend(byteData, 0, byteData.Length, 0, new AsyncCallback(SendCallback), client);
+                }
+
+                private static void SendCallback(IAsyncResult ar)
+                {
+                    try
+                    {
+                        Socket clint = (Socket)ar.AsyncState;
+                        int bytesSent = clint.EndSend(ar);
+                        Console.WriteLine("Sent {0} bytes to server.", bytesSent);
+                        SendDone.Set();
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e.ToString());
+                    }
                 }
 
                 private static void ConnectCallback(IAsyncResult ar)
                 {
-                    throw new NotImplementedException();
+                    try
+                    {
+                        Socket clint = (Socket) ar.AsyncState;
+                        clint.EndConnect(ar);
+                        Console.WriteLine("Socket connected to {0}", client.RemoteEndPoint.ToString());
+                        ConnectDone.Set();
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e.ToString());
+                    }
                 }
             }
         }

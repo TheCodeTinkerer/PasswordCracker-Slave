@@ -29,23 +29,31 @@ namespace PasswordCrackerCentralized
         public List<UserInfoClearText> RunCracking()
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-
+            Console.WriteLine("Cracking started");
             List<UserInfo> userInfos =
                 PasswordFileHandler.ReadPasswordFile("passwords.txt");
             List<UserInfoClearText> result = new List<UserInfoClearText>();
             using (FileStream fs = new FileStream("webster-dictionary.txt", FileMode.Open, FileAccess.Read))
             using (StreamReader dictionary = new StreamReader(fs))
             {
-                while (!dictionary.EndOfStream)
+                try
                 {
-                    String dictionaryEntry = dictionary.ReadLine();
-                    IEnumerable<UserInfoClearText> partialResult = CheckWordWithVariations(dictionaryEntry, userInfos);
-                    result.AddRange(partialResult);
+                    while (!dictionary.EndOfStream)
+                    {
+                        String dictionaryEntry = dictionary.ReadLine();
+                        IEnumerable<UserInfoClearText> partialResult = CheckWordWithVariations(dictionaryEntry, userInfos);
+                        result.AddRange(partialResult);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("skipping first line" + ex);
                 }
             }
             stopwatch.Stop();
             Console.WriteLine(string.Join(", ", result));
             Console.WriteLine("Time elapsed: {0}", stopwatch.Elapsed);
+            return result;
         }
 
         /// <summary>
