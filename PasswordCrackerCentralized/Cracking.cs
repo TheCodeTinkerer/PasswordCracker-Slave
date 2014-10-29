@@ -26,34 +26,46 @@ namespace PasswordCrackerCentralized
         /// <summary>
         /// Runs the password cracking algorithm
         /// </summary>
-        public List<UserInfoClearText> RunCracking()
+        public string RunCracking(List<string> wordsList)
         {
+            List<string> foundEntry = new List<string>();
             Stopwatch stopwatch = Stopwatch.StartNew();
             Console.WriteLine("Cracking started");
+            //string msg = Encoding.UTF8.GetString(data);
             List<UserInfo> userInfos =
                 PasswordFileHandler.ReadPasswordFile("passwords.txt");
             List<UserInfoClearText> result = new List<UserInfoClearText>();
-            using (FileStream fs = new FileStream("webster-dictionary.txt", FileMode.Open, FileAccess.Read))
-            using (StreamReader dictionary = new StreamReader(fs))
+            //using (FileStream fs = new FileStream(@"c:\temp\copy\client\webster-dictionary.txt", FileMode.Open, FileAccess.Read))
+            //using (StreamReader dictionary = new StreamReader(fs))
+            //{
+            foreach (string words in wordsList)
             {
-                try
-                {
-                    while (!dictionary.EndOfStream)
-                    {
-                        String dictionaryEntry = dictionary.ReadLine();
-                        IEnumerable<UserInfoClearText> partialResult = CheckWordWithVariations(dictionaryEntry, userInfos);
-                        result.AddRange(partialResult);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("skipping first line" + ex);
-                }
+                String dictionaryEntry = words;
+                IEnumerable<UserInfoClearText> partialResult = CheckWordWithVariations(dictionaryEntry, userInfos);
+                result.AddRange(partialResult);
             }
+            //while (/*!dictionary.EndOfStream*/)
+            //{
+            //    String dictionaryEntry = dictionary.ReadLine();
+            //    IEnumerable<UserInfoClearText> partialResult = CheckWordWithVariations(dictionaryEntry, userInfos);
+            //    result.AddRange(partialResult);
+            //}
+            //}
             stopwatch.Stop();
             Console.WriteLine(string.Join(", ", result));
             Console.WriteLine("Time elapsed: {0}", stopwatch.Elapsed);
-            return result;
+            string endRes = (string.Join(",", result));
+            //string endResult = (string.Join(", ", result));
+            //if (string.IsNullOrEmpty(endResult))
+            //{
+            //    string line = msg;
+            //    String[] parts = line.Split(":".ToCharArray());
+            //    UserInfo userInfo = new UserInfo(parts[0], parts[1]);
+            //    endResult = parts[0] + ": " + "No match found";
+            //}
+            //return endResult;
+            return endRes;
+
         }
 
         /// <summary>

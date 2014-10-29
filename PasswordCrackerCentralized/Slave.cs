@@ -12,173 +12,96 @@ using PasswordCrackerCentralized.model;
 
 namespace PasswordCrackerCentralized
 {
-    internal class Slave
+    class Slave
     {
-        public class StateObject
+        public String MasterName { get; private set; }
+        public int MasterPort { get; private set; }
+        Cracking crack = new Cracking();
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="masterName"></param>
+        /// <param name="masterPort"></param>
+        public Slave(string masterName, int masterPort)
         {
-            // Client socket.
-            public Socket workSocket = null;
-            // Size of receive buffer.
-            public const int BufferSize = 256;
-            // Receive buffer.
-            public byte[] buffer = new byte[BufferSize];
-            // Received data string.
-            public StringBuilder sb = new StringBuilder();
+            MasterName = masterName;
+            MasterPort = masterPort;
         }
-
-        public class AsynchronousClient
+        /// <summary>
+        /// Runs the server, gets a request and saves it into List<string>words, which as long as the list is not empty, it should pass the list
+        /// into the RunCracking method in the Cracking class and process it, if the list is empty the loop will break and the process is 
+        /// completed
+        /// </summary>
+        public void Run()
         {
-            private const int Port = 65080;
-
-            private static readonly ManualResetEvent ConnectDone = new ManualResetEvent(false);
-            private static readonly ManualResetEvent SendDone = new ManualResetEvent(false);
-            private static readonly ManualResetEvent ReceiveDone = new ManualResetEvent(false);
-
-            private static String response = String.Empty;
-            public static Cracking crack = new Cracking();
-
-            public static Socket client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-
-            private static void Main(string[] args)
+            while (true)
             {
-                Console.Title = "Client";
-                StartClient();
+                List<String> words = SendGetRequest();
+                if (words.Count != 0)
+                {
+                    var list = crack.RunCracking(words);
+                    Console.WriteLine(list);
+                    SendFoundRequest(null, list);
+                }
+                if (words.Count == 0)
+                {
+                    break;
+                }
             }
-
-                private static void StartClient()
+            Console.WriteLine("Slave is done");
+        }
+        /// <summary>
+        /// Sends the GET request to the server, to retrive the part of the dictionary it needs to perform the cracking process, also used to
+        /// shutdown the connection it it retrieves the command from the server.
+        /// </summary>
+        /// <returns></returns>
+        private List<String> SendGetRequest()
+        {
+            using (TcpClient connection = new TcpClient(MasterName, MasterPort))
+            {
+                List<String> words = new List<string>();
+                try
                 {
-                    try
+                    StreamWriter toServer = new StreamWriter(connection.GetStream());
+                    toServer.WriteLine("GET");
+                    toServer.Flush();
+                    Console.WriteLine("Slave GET sent");
+                    StreamReader fromServer = new StreamReader(connection.GetStream());
+                    if (fromServer.ReadLine() == "Shutdown Sockets")
                     {
-                        IPAddress ip = IPAddress.Parse("10.154.2.36");
-                        IPEndPoint remoteEP = new IPEndPoint(ip, Port);
-
-                        client.BeginConnect(remoteEP, new AsyncCallback(ConnectCallback), client);
-                        ConnectDone.WaitOne();
-                        List<UserInfoClearText> list = crack.RunCracking();
-                        string answer = string.Empty;
-
-                        for (int i = 0; 1 < list.Count; i++)
-                        {
-                            answer = list[i].ToString();
-                        }
-                        Send(client, answer);
-                        SendDone.WaitOne();
-
-                        Receive(client);
-                        ReceiveDone.WaitOne();
-                        crack.RunCracking();
-
-                        Console.WriteLine("Response received : {0}", response);
-                        byte[] words = Encoding.ASCII.GetBytes(response);
-                        SaveFile(words);
+                        connection.Close();
                     }
-                    catch (Exception e)
+                    while (!fromServer.EndOfStream)
                     {
-                        Console.WriteLine(e.ToString());
+                        String word = fromServer.ReadLine();
+                        Console.WriteLine("Slave read " + word);
+                        words.Add(word);
                     }
+                    Console.WriteLine(String.Join(", ", words));
                 }
-
-                private static void SaveFile(byte[] words)
+                catch (Exception)
                 {
-                    string receivedPart = "C://Users//Morten//Documents//Visual Studio 2013//Projects//password//PasswordCracker-1//temp//";
-                    int fileNameLen = BitConverter.ToInt32(words, 0);
-                    string fileName = Encoding.ASCII.GetString(words, 4, fileNameLen);
-                    Console.WriteLine("Client:{0} connected & File {1} started received.", client.RemoteEndPoint, fileName);
-                    if (File.Exists(receivedPart + fileName))
-                    {
-                        File.Delete(receivedPart + fileName);
-                    }
-                    BinaryWriter bWrite = new BinaryWriter(File.Open(receivedPart + fileName, FileMode.Append));
-                    bWrite.Write(words);
-                    Console.WriteLine("File: {0} received & saved at path: {1}", fileName, receivedPart);
-
-                    bWrite.Close();
-                    client.Close();
-                    Console.ReadLine();
+                    Console.WriteLine("Server might be down or cracking procedure might already be completed, program will now exit.");
                 }
-
-                private static void Receive(Socket client)
-                {
-                    try
-                    {
-                        StateObject state = new StateObject();
-                        state.workSocket = client;
-
-                        client.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e.ToString());
-                    }
-                }
-
-                private static void ReceiveCallback(IAsyncResult ar)
-                {
-                    try
-                    {
-                        StateObject state = (StateObject)ar.AsyncState;
-                        Socket client = state.workSocket;
-
-                        int bytesRead = client.EndReceive(ar);
-
-                        if (bytesRead > 0)
-                        {
-                            state.sb.Append(Encoding.ASCII.GetString(state.buffer, 0, bytesRead));
-
-                            client.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(ReceiveCallback), state);
-                        }
-                        else
-                        {
-                            if (state.sb.Length > 1)
-                            {
-                                response = state.sb.ToString();
-                            }
-                            ReceiveDone.Set();
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e.ToString());
-                    }
-                }
-
-                private static void Send(Socket client, string answer)
-                {
-                    byte[] byteData = Encoding.ASCII.GetBytes(answer);
-                    client.BeginSend(byteData, 0, byteData.Length, 0, new AsyncCallback(SendCallback), client);
-                }
-
-                private static void SendCallback(IAsyncResult ar)
-                {
-                    try
-                    {
-                        Socket clint = (Socket)ar.AsyncState;
-                        int bytesSent = clint.EndSend(ar);
-                        Console.WriteLine("Sent {0} bytes to server.", bytesSent);
-                        SendDone.Set();
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e.ToString());
-                    }
-                }
-
-                private static void ConnectCallback(IAsyncResult ar)
-                {
-                    try
-                    {
-                        Socket clint = (Socket) ar.AsyncState;
-                        clint.EndConnect(ar);
-                        Console.WriteLine("Socket connected to {0}", client.RemoteEndPoint.ToString());
-                        ConnectDone.Set();
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e.ToString());
-                    }
-                }
+                return words;
             }
         }
+        /// <summary>
+        /// Sends message to the server about found username and passwords
+        /// </summary>
+        /// <param name="username"></param>
+        /// <param name="password"></param>
+        private void SendFoundRequest(String username, string password)
+        {
+            using (TcpClient connection = new TcpClient(MasterName, MasterPort))
+            {
+                StreamWriter toServer = new StreamWriter(connection.GetStream());
+                toServer.WriteLine("FOUND");
+                toServer.WriteLine(username);
+                toServer.WriteLine(password);
+                toServer.Flush();
+            }
+        }
+    }
     }
 
